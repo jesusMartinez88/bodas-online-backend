@@ -42,31 +42,7 @@ if (weakSecrets.some(weak => jwtSecret.toLowerCase().includes(weak))) {
 
 console.log(`✅ JWT_SECRET: ${jwtSecret.length} caracteres (seguro)`);
 
-// 2. Verificar ADMIN_PASSWORD
-const adminPassword = process.env.ADMIN_PASSWORD;
-
-if (!adminPassword) {
-  console.warn("⚠️  ADMIN_PASSWORD no está definido");
-} else {
-  const hasUpperCase = /[A-Z]/.test(adminPassword);
-  const hasLowerCase = /[a-z]/.test(adminPassword);
-  const hasNumbers = /[0-9]/.test(adminPassword);
-  const hasSpecialChars = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(adminPassword);
-  const isLongEnough = adminPassword.length >= 12;
-
-  if (!isLongEnough || !hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChars) {
-    console.warn("⚠️  ADMIN_PASSWORD es débil. Debe tener:");
-    if (!isLongEnough) console.warn("   - Al menos 12 caracteres");
-    if (!hasUpperCase) console.warn("   - Mayúsculas");
-    if (!hasLowerCase) console.warn("   - Minúsculas");
-    if (!hasNumbers) console.warn("   - Números");
-    if (!hasSpecialChars) console.warn("   - Caracteres especiales");
-  } else {
-    console.log("✅ ADMIN_PASSWORD: Fuerte");
-  }
-}
-
-// 3. Verificar ORIGIN_URL
+// 2. Verificar ORIGIN_URL
 const originUrl = process.env.ORIGIN_URL;
 
 if (!originUrl) {
@@ -81,7 +57,7 @@ if (!originUrl) {
   }
 }
 
-// 4. Verificar NODE_ENV
+// 3. Verificar NODE_ENV
 const nodeEnv = process.env.NODE_ENV;
 
 if (!nodeEnv) {

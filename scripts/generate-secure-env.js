@@ -6,29 +6,6 @@ console.log("🔐 Generando configuración segura para .env\n");
 // Generar JWT_SECRET seguro (256 bits)
 const jwtSecret = crypto.randomBytes(32).toString('hex');
 
-// Generar ADMIN_PASSWORD seguro
-const generateSecurePassword = () => {
-  const length = 16;
-  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
-  let password = '';
-  
-  // Asegurar que tenga al menos uno de cada tipo
-  password += 'A'; // Mayúscula
-  password += 'a'; // Minúscula
-  password += '1'; // Número
-  password += '!'; // Especial
-  
-  // Rellenar el resto
-  for (let i = password.length; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  
-  // Mezclar
-  return password.split('').sort(() => Math.random() - 0.5).join('');
-};
-
-const adminPassword = generateSecurePassword();
-
 // Plantilla de .env
 const envTemplate = `# ============================================
 # CONFIGURACIÓN DE SEGURIDAD
@@ -39,9 +16,9 @@ const envTemplate = `# ============================================
 # JWT Secret (256 bits) - CAMBIAR EN PRODUCCIÓN
 JWT_SECRET=${jwtSecret}
 
-# Admin Password - CAMBIAR EN PRODUCCIÓN
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=${adminPassword}
+# El usuario admin por defecto (admin/admin) se crea automáticamente desde
+# src/db.js en el primer arranque si no existe en la BD. La contraseña debe
+# cambiarse en el primer login desde la app.
 
 # ============================================
 # CONFIGURACIÓN DE APLICACIÓN
@@ -94,7 +71,6 @@ console.log("━".repeat(60));
 console.log("\n💾 ¿Deseas guardar esto en .env.example? (El archivo .env actual NO será modificado)");
 console.log("\n📋 Valores generados:");
 console.log(`   JWT_SECRET: ${jwtSecret}`);
-console.log(`   ADMIN_PASSWORD: ${adminPassword}`);
 
 // Guardar en .env.example
 try {
@@ -111,5 +87,5 @@ try {
 
 console.log("\n🔒 Recuerda:");
 console.log("   - JWT_SECRET debe ser diferente en cada entorno");
-console.log("   - ADMIN_PASSWORD debe cambiarse inmediatamente después del primer login");
+console.log("   - El usuario admin por defecto es admin/admin; cámbialo en el primer login");
 console.log("   - En producción, usa variables de entorno del hosting (no .env)");

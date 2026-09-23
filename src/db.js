@@ -137,46 +137,6 @@ const initializeTables = async () => {
      */
     await db.run("PRAGMA foreign_keys = ON");
 
-    /**
-     * Limpieza one-shot: borrar filas huérfanas que se acumularon
-     * mientras el cascade estaba desactivado. Es seguro ejecutarlo
-     * siempre: si no hay huérfanas, los DELETE no afectan nada.
-     */
-    const orphanTables = [
-      "guests",
-      "tables",
-      "finances",
-      "todos",
-      "music_playlist",
-      "contacts",
-      "contact_categories",
-      "settings",
-      "landing_questionnaire",
-    ];
-    let totalOrphansRemoved = 0;
-    for (const tableName of orphanTables) {
-      try {
-        const result = await db.run(
-          `DELETE FROM ${tableName}
-           WHERE userId IS NOT NULL
-             AND userId NOT IN (SELECT id FROM users)`,
-        );
-        if (result.changes > 0) {
-          console.log(
-            `🧹 ${result.changes} huérfanas eliminadas de ${tableName}`,
-          );
-          totalOrphansRemoved += result.changes;
-        }
-      } catch (err) {
-        console.error(`Orphan cleanup warning (${tableName}):`, err.message);
-      }
-    }
-    if (totalOrphansRemoved > 0) {
-      console.log(
-        `✅ Limpieza de huérfanos completada: ${totalOrphansRemoved} filas eliminadas en total`,
-      );
-    }
-
     // Tabla de invitados
     await db.run(`
       CREATE TABLE IF NOT EXISTS guests (
@@ -333,27 +293,29 @@ const initializeTables = async () => {
       }
     }
 
-    // Usuario admin por defecto
-    const adminUsername = process.env.ADMIN_USERNAME || "admin";
-    const adminPassword = process.env.ADMIN_PASSWORD;
-    if (adminPassword) {
-      const user = await db.get("SELECT id FROM users WHERE username = ?", [
-        adminUsername,
-      ]);
-      if (!user) {
-        const hashedPassword = bcrypt.hashSync(adminPassword, 10);
-        const adminSlug = adminUsername
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "");
-        await db.run(
-          "INSERT INTO users (username, password, role, slug) VALUES (?, ?, ?, ?)",
-          [adminUsername, hashedPassword, "admin", adminSlug],
-        );
-        console.log(
-          `Default user '${adminUsername}' created with slug '${adminSlug}'`,
-        );
-      }
+    // Usuario admin por defecto: si la tabla `users` no contiene un usuario
+    // con username `admin`, se crea con la contraseña `admin`. La contraseña
+    // debe cambiarse en el primer login desde la app. Esto evita depender de
+    // variables de entorno para el seeding inicial.
+    const adminUsername = "admin";
+    const adminPassword = "admin";
+    const existingAdmin = await db.get(
+      "SELECT id FROM users WHERE username = ?",
+      [adminUsername],
+    );
+    if (!existingAdmin) {
+      const hashedPassword = bcrypt.hashSync(adminPassword, 10);
+      const adminSlug = adminUsername
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+      await db.run(
+        "INSERT INTO users (username, password, role, slug) VALUES (?, ?, ?, ?)",
+        [adminUsername, hashedPassword, "admin", adminSlug],
+      );
+      console.log(
+        `✅ Default admin '${adminUsername}' created with slug '${adminSlug}' (password: admin — cámbiala en el primer login)`,
+      );
     }
 
     // Tabla de códigos de restablecimiento de contraseña
@@ -934,6 +896,54 @@ const initializeTables = async () => {
       }
     } catch (err) {
       console.error("Migration warning (page_visits):", err.message);
+    }
+
+    /**
+     * Limpieza one-shot: borrar filas huérfanas que se acumularon
+     * mientras el cascade de FK estaba desactivado (PRAGMA foreign_keys).
+     * Se ejecuta DESPUÉS de crear las tablas para que `no such table`
+     * no aparezca en BDs recién creadas. Antes verificamos con
+     * `sqlite_master` que la tabla exista (algunas tablas listadas
+     * pueden no existir en versiones muy antiguas del schema).
+     */
+    const orphanTables = [
+      "guests",
+      "tables",
+      "finances",
+      "todos",
+      "music_playlist",
+      "contacts",
+      "contact_categories",
+      "settings",
+      "landing_questionnaire",
+    ];
+    let totalOrphansRemoved = 0;
+    for (const tableName of orphanTables) {
+      try {
+        const exists = await db.get(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+          [tableName],
+        );
+        if (!exists) continue;
+        const result = await db.run(
+          `DELETE FROM ${tableName}
+           WHERE userId IS NOT NULL
+             AND userId NOT IN (SELECT id FROM users)`,
+        );
+        if (result.changes > 0) {
+          console.log(
+            `🧹 ${result.changes} huérfanas eliminadas de ${tableName}`,
+          );
+          totalOrphansRemoved += result.changes;
+        }
+      } catch (err) {
+        console.error(`Orphan cleanup warning (${tableName}):`, err.message);
+      }
+    }
+    if (totalOrphansRemoved > 0) {
+      console.log(
+        `✅ Limpieza de huérfanos completada: ${totalOrphansRemoved} filas eliminadas en total`,
+      );
     }
 
     console.log(
