@@ -258,12 +258,13 @@ export const deleteTable = async (req, res) => {
 
 export const requestDeleteCode = async (req, res) => {
   try {
+    const userId = req.userContext.userId;
     pendingDeleteCode = generateDeleteCode();
     pendingDeleteExpiry = Date.now() + 15 * 60 * 1000;
 
     console.log("🔐 Código de borrado de mesas generado:", pendingDeleteCode);
 
-    await sendDeleteCodeEmail(pendingDeleteCode);
+    await sendDeleteCodeEmail(pendingDeleteCode, userId);
 
     const responsePayload = {
       success: true,

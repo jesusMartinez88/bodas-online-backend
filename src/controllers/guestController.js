@@ -379,7 +379,7 @@ export const createGuest = async (req, res) => {
     }
 
     if (sendEmail !== false) {
-      await sendNewGuestEmail(mainGuest, numAdults, numChildren);
+      await sendNewGuestEmail(mainGuest, numAdults, numChildren, userId);
     }
 
     if (sendEmail !== false) {
@@ -626,12 +626,13 @@ export const deleteGuest = async (req, res) => {
 
 export const requestDeleteCode = async (req, res) => {
   try {
+    const userId = req.userContext.userId;
     pendingDeleteCode = generateDeleteCode();
     pendingDeleteExpiry = Date.now() + 15 * 60 * 1000;
 
     console.log("🔐 Código de borrado generado:", pendingDeleteCode);
 
-    await sendDeleteCodeEmail(pendingDeleteCode);
+    await sendDeleteCodeEmail(pendingDeleteCode, userId);
 
     const responsePayload = {
       success: true,

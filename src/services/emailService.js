@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import db from "../db.js";
 
 let resend = null;
 let emailEnabled = false;
@@ -32,17 +33,26 @@ export const initializeEmailService = () => {
 /**
  * Enviar email cuando se crea un nuevo invitado
  */
-export const sendNewGuestEmail = async (guest, numAdults, numChildren) => {
+export const sendNewGuestEmail = async (
+  guest,
+  numAdults,
+  numChildren,
+  userId,
+) => {
   if (!emailEnabled || !process.env.SEND_EMAIL_ON_GUEST_CREATE) {
     console.log("Email sending is disabled.");
     return null;
   }
 
   try {
-    const emailOwner = process.env.EMAILOWNER;
+    const invitationOwner = await db.get(
+      "SELECT email FROM users WHERE id = ?",
+      [userId],
+    );
+    const emailOwner = invitationOwner?.email;
 
     if (!emailOwner) {
-      console.warn("EMAILOWNER not configured");
+      console.warn("Invitation owner email not configured");
       return null;
     }
 
@@ -223,7 +233,10 @@ export const sendContactMessageEmail = async ({
   }
 
   try {
-    const emailOwner = process.env.EMAILOWNER;
+    const emailOwner = await db.get(
+      "SELECT email FROM users WHERE role = ? AND email IS NOT NULL ORDER BY id ASC LIMIT 1",
+      ["admin"],
+    );
     if (!emailOwner) {
       console.warn("EMAILOWNER not configured");
       return null;
@@ -254,10 +267,7 @@ export const sendContactMessageEmail = async ({
     const messageBlock = safeMessage
       .split("\n")
       .map((line) =>
-        line
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;"),
+        line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
       )
       .join("<br>");
 
@@ -386,21 +396,23 @@ export const sendContactMessageEmail = async ({
  * Envia un código numérico de 6 cifras al propietario para autorizar
  * la eliminación masiva de invitados.
  */
-export const sendDeleteCodeEmail = async (code) => {
+export const sendDeleteCodeEmail = async (code, userId) => {
   if (!emailEnabled) {
     return null;
   }
 
   try {
-    const emailOwner = process.env.EMAILOWNER;
-    if (!emailOwner) {
-      console.warn("EMAILOWNER not configured");
+    const emailUser = await db.get("SELECT email FROM users WHERE id = ?", [
+      userId,
+    ]);
+    if (!emailUser?.email) {
+      console.warn("No email configured for user");
       return null;
     }
 
     const result = await resend.emails.send({
       from: "Wedding API <onboarding@resend.dev>",
-      to: emailOwner,
+      to: emailUser.email,
       subject: "🛑 Código para eliminación masiva de invitados",
       html: `
         <p>Se ha solicitado borrar <strong>todos</strong> los invitados.</p>
@@ -410,7 +422,7 @@ export const sendDeleteCodeEmail = async (code) => {
       `,
     });
 
-    console.log("✉️ Delete code sent to:", emailOwner);
+    console.log("✉️ Delete code sent to:", emailUser.email);
     return result;
   } catch (error) {
     console.error("Error sending delete code email:", error.message);
@@ -423,11 +435,13 @@ export const sendDeleteCodeEmail = async (code) => {
  */
 export const sendPasswordResetCodeEmail = async ({ to, username, code }) => {
   if (!emailEnabled) {
-    console.warn("⚠️ Email service disabled. Reset code cannot be sent via email.");
+    console.warn(
+      "⚠️ Email service disabled. Reset code cannot be sent via email.",
+    );
     return null;
   }
 
-  const recipient = to || process.env.EMAILOWNER;
+  const recipient = to;
   if (!recipient) {
     console.warn("⚠️ No recipient email available for password reset code");
     return null;
@@ -473,4 +487,3 @@ export const sendPasswordResetCodeEmail = async ({ to, username, code }) => {
     return null;
   }
 };
-
