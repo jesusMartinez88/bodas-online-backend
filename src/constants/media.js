@@ -26,9 +26,11 @@ export const MEDIA_ROOT = resolve(process.env.INVITATION_MEDIA_DIR || "assets");
 export const MEDIA_KIND_COVER = "covery";
 export const MEDIA_KIND_GALLERY = "gallery";
 export const MEDIA_KIND_HISTORY = "history";
+export const MEDIA_KIND_MUSIC = "music";
 
 export const MEDIA_KINDS = [
   MEDIA_KIND_COVER,
   MEDIA_KIND_GALLERY,
   MEDIA_KIND_HISTORY,
+  MEDIA_KIND_MUSIC,
 ];

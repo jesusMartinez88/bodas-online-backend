@@ -1,4 +1,4 @@
-import { mkdir, readdir, rename, rm } from "node:fs/promises";
+import { mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
@@ -7,7 +7,9 @@ import {
   MEDIA_KIND_COVER,
   MEDIA_KIND_GALLERY,
   MEDIA_KIND_HISTORY,
+  MEDIA_KIND_MUSIC,
 } from "../constants/media.js";
+import * as User from "../models/user.js";
 
 const MAX_PIXELS = 20_000_000;
 const MAX_DIMENSION = 2560;
@@ -16,6 +18,7 @@ const ACCEPTED_FORMATS = new Set(["jpeg", "png", "webp"]);
 // Mapeo kind → nombre de archivo de la portada. Solo `covery` tiene
 // nombre fijo; las otras dos subcarpetas usan UUIDs.
 const COVER_FILENAME = "cover.webp";
+const MUSIC_FILENAME = "background.mp3";
 
 // URL pública servida por `app.use("/media/photos", express.static(...))`
 // en `app.js`. Coincide con `MEDIA_KIND_*` arriba.
@@ -29,7 +32,20 @@ const mediaUrl = (slug, kind, name) =>
 const userKindDirectory = (slug, kind) => join(MEDIA_ROOT, slug, kind);
 
 const safeMediaName = (name) =>
-  name === COVER_FILENAME || /^[0-9a-f-]{36}\.webp$/i.test(name);
+  name === COVER_FILENAME || name === MUSIC_FILENAME || /^[0-9a-f-]{36}\.webp$/i.test(name);
+
+const musicUrl = (slug) =>
+  mediaUrl(slug, MEDIA_KIND_MUSIC, MUSIC_FILENAME);
+
+const isMp3 = (file) => {
+  if (!file?.buffer?.length) return false;
+  const bytes = file.buffer;
+  const hasId3 = bytes.length >= 3 && bytes.subarray(0, 3).toString("ascii") === "ID3";
+  const hasMpegFrame =
+    bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0;
+  const acceptedMime = new Set(["audio/mpeg", "audio/mp3", "audio/x-mpeg"]);
+  return acceptedMime.has(file.mimetype) && (hasId3 || hasMpegFrame);
+};
 
 const invalidImageError = () => {
   const error = new Error("Only valid JPEG, PNG and WebP images are allowed");
@@ -115,10 +131,11 @@ export const listMine = async (req, res, next) => {
   try {
     const { slug } = req.userContext;
 
-    const [coverFiles, galleryFiles, historyFiles] = await Promise.all([
+    const [coverFiles, galleryFiles, historyFiles, musicFiles] = await Promise.all([
       readUserKindFiles(slug, MEDIA_KIND_COVER),
       readUserKindFiles(slug, MEDIA_KIND_GALLERY),
       readUserKindFiles(slug, MEDIA_KIND_HISTORY),
+      readUserKindFiles(slug, MEDIA_KIND_MUSIC),
     ]);
 
     res.json({
@@ -133,6 +150,9 @@ export const listMine = async (req, res, next) => {
         historyUrls: historyFiles.map((name) =>
           mediaUrl(slug, MEDIA_KIND_HISTORY, name),
         ),
+        musicUrl: musicFiles.includes(MUSIC_FILENAME)
+          ? musicUrl(slug)
+          : null,
       },
     });
   } catch (error) {
@@ -217,6 +237,39 @@ export const uploadHistory = async (req, res, next) => {
   }
 };
 
+export const uploadMusicForUser = async (req, res, next) => {
+  try {
+    const target = await User.findById(req.params.id);
+    if (!target) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    if (target.role === "admin") {
+      return res.status(403).json({ success: false, message: "Cannot change admin music" });
+    }
+    if (!isMp3(req.file)) {
+      return res.status(415).json({ success: false, message: "Only valid MP3 audio is allowed" });
+    }
+
+    const directory = userKindDirectory(target.slug, MEDIA_KIND_MUSIC);
+    await mkdir(directory, { recursive: true });
+    const targetPath = join(directory, MUSIC_FILENAME);
+    const temporaryPath = `${targetPath}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporaryPath, req.file.buffer);
+      await rename(temporaryPath, targetPath);
+    } finally {
+      await rm(temporaryPath, { force: true });
+    }
+
+    res.status(201).json({
+      success: true,
+      data: { url: musicUrl(target.slug) },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * Borrado de una foto propia del usuario. El frontend solo necesita
  * pasar el nombre del archivo (`cover.webp` o un UUID); el backend
@@ -253,10 +306,11 @@ export const listPublic = async (req, res, next) => {
   try {
     const { slug } = req.userContext;
 
-    const [coverFiles, galleryFiles, historyFiles] = await Promise.all([
+    const [coverFiles, galleryFiles, historyFiles, musicFiles] = await Promise.all([
       readUserKindFiles(slug, MEDIA_KIND_COVER),
       readUserKindFiles(slug, MEDIA_KIND_GALLERY),
       readUserKindFiles(slug, MEDIA_KIND_HISTORY),
+      readUserKindFiles(slug, MEDIA_KIND_MUSIC),
     ]);
 
     res.json({
@@ -271,6 +325,9 @@ export const listPublic = async (req, res, next) => {
         historyUrls: historyFiles.map((name) =>
           mediaUrl(slug, MEDIA_KIND_HISTORY, name),
         ),
+        musicUrl: musicFiles.includes(MUSIC_FILENAME)
+          ? musicUrl(slug)
+          : null,
       },
     });
   } catch (error) {
