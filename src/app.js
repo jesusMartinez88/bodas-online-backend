@@ -18,6 +18,7 @@ import userRoutes from "./routes/users.js";
 import adminRoutes from "./routes/admin.js";
 import landingQuestionnaireRoutes from "./routes/landingQuestionnaire.js";
 import invitationMediaRoutes from "./routes/invitation-media.js";
+import { MEDIA_ROOT } from "./constants/media.js";
 import { initializeEmailService } from "./services/emailService.js";
 import { initializeWhatsAppService } from "./services/whatsappService.js";
 import helmet from "helmet";
@@ -107,13 +108,17 @@ app.set("trust proxy", 1);
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use("/media/fotos", (req, res, next) => {
-  // Helmet sets Cross-Origin-Resource-Policy: same-origin by default, which blocks
-  // cross-origin image loads (ERR_BLOCKED_BY_RESPONSE.NotSameOrigin).
-  // Override it to allow the frontend (different port/origin) to load these assets.
-  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-  next();
-}, express.static(process.env.INVITATION_MEDIA_DIR || "assets/fotos", { index: false, fallthrough: false, maxAge: 0 }));
+app.use(
+  "/media/photos",
+  (req, res, next) => {
+    // Helmet sets Cross-Origin-Resource-Policy: same-origin by default, which blocks
+    // cross-origin image loads (ERR_BLOCKED_BY_RESPONSE.NotSameOrigin).
+    // Override it to allow the frontend (different port/origin) to load these assets.
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
+  express.static(MEDIA_ROOT, { index: false, fallthrough: false, maxAge: 0 }),
+);
 app.use("/api/", generalLimiter);
 
 app.get("/health", (req, res) => {

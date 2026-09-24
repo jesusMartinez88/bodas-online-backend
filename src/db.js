@@ -760,6 +760,14 @@ const initializeTables = async () => {
     // `additionalServices` para no romper el esquema si en el futuro el
     // admin añade más preguntas.
     try {
+      /*
+       * Columna legacy `ourStoryCaptions` (formato antiguo del
+       * cuestionario, captions como JSON sin foto asociada): la
+       * creamos como TEXT nullable para que el admin frontend siga
+       * pudiendo leer datos históricos. Los cuestionarios nuevos usan
+       * `ourStoryEntries` (foto + caption por entrada) y nunca tocan
+       * esta columna.
+       */
       await db.run(`
         CREATE TABLE IF NOT EXISTS landing_questionnaire (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -780,6 +788,7 @@ const initializeTables = async () => {
           hasBackgroundMusic INTEGER DEFAULT 0,
           backgroundMusicSong TEXT,
           ourStoryEntries TEXT,
+          ourStoryCaptions TEXT,
           contactCouple INTEGER DEFAULT 0,
           contactGroomPhone TEXT,
           contactBridePhone TEXT,
@@ -813,6 +822,7 @@ const initializeTables = async () => {
         ["hasBackgroundMusic", "INTEGER DEFAULT 0"],
         ["backgroundMusicSong", "TEXT"],
         ["ourStoryEntries", "TEXT"],
+        ["ourStoryCaptions", "TEXT"],
         ["contactCouple", "INTEGER DEFAULT 0"],
         ["contactGroomPhone", "TEXT"],
         ["contactBridePhone", "TEXT"],

@@ -16,12 +16,15 @@ router.use(resolveUserContext);
 router.get("/", controller.listMine);
 router.post("/cover", upload.single("image"), controller.uploadCover);
 router.post("/gallery", upload.array("images", 12), controller.uploadGallery);
+router.post("/history", upload.array("images", 12), controller.uploadHistory);
 router.delete("/:name", controller.removeMine);
 
 router.use((error, req, res, next) => {
   if (error instanceof multer.MulterError) {
     const status = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
-    return res.status(status).json({ success: false, message: "Invalid image upload" });
+    return res
+      .status(status)
+      .json({ success: false, message: "Invalid image upload" });
   }
   next(error);
 });
