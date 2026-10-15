@@ -1,4 +1,6 @@
 import { createClient } from "@libsql/client";
+import { mkdirSync, existsSync } from "node:fs";
+import { dirname, resolve, isAbsolute } from "node:path";
 import bcrypt from "bcryptjs";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -15,6 +17,21 @@ if (isProduction && !url) {
 console.log(
   `Using ${isProduction ? "Turso" : "local SQLite"} database: ${url}`,
 );
+
+// Para SQLite local, garantizar que el directorio padre exista ANTES de
+// instanciar el cliente. @libsql/client no crea el directorio automáticamente:
+// si `data/` no existe, `createClient` lanza `SQLITE_CANTOPEN (código 14)`.
+// Esto suele ocurrir en la primera ejecución tras clonar el repo o tras un
+// `pnpm clean`. Las URLs Turso (`libsql://...`) son remotas, no necesitan esto.
+if (!isProduction && url.startsWith("file:")) {
+  const filePath = url.slice("file:".length);
+  const absPath = isAbsolute(filePath) ? filePath : resolve(process.cwd(), filePath);
+  const dir = dirname(absPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+    console.log(`📁 Created local database directory: ${dir}`);
+  }
+}
 
 const client = createClient({
   url: url,

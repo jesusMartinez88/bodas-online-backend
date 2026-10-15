@@ -449,13 +449,13 @@ export const sendPasswordResetCodeEmail = async ({ to, username, code }) => {
 
   try {
     const result = await resend.emails.send({
-      from: "BodasOnline <onboarding@resend.dev>",
+      from: "Tu Boda Online <onboarding@resend.dev>",
       to: recipient,
       subject: "🔑 Tu código de recuperación de contraseña",
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 540px; margin: 0 auto; background-color: #ffffff; border: 1px solid #f3e8ff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
           <div style="background: linear-gradient(135deg, #ec4899, #be185d); padding: 24px; text-align: center; color: white;">
-            <h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">BodasOnline</h1>
+            <h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Tu Boda Online</h1>
             <p style="margin: 6px 0 0; font-size: 14px; opacity: 0.9;">Recuperación de contraseña</p>
           </div>
           <div style="padding: 32px 24px; color: #1f2937;">
@@ -537,13 +537,13 @@ export const sendPaymentReceivedEmail = async ({
 
   try {
     const result = await resend.emails.send({
-      from: "BodasOnline <onboarding@resend.dev>",
+      from: "Tu Boda Online <onboarding@resend.dev>",
       to: recipient,
       subject: "🎉 ¡Pago recibido! Tu boda está activa",
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 540px; margin: 0 auto; background-color: #ffffff; border: 1px solid #f3e8ff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
           <div style="background: linear-gradient(135deg, #ec4899, #be185d); padding: 24px; text-align: center; color: white;">
-            <h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">BodasOnline</h1>
+            <h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Tu Boda Online</h1>
             <p style="margin: 6px 0 0; font-size: 14px; opacity: 0.9;">¡Gracias por tu compra!</p>
           </div>
           <div style="padding: 32px 24px; color: #1f2937;">
@@ -572,7 +572,7 @@ export const sendPaymentReceivedEmail = async ({
               te echamos una mano.
             </p>
             <div style="text-align: center; margin: 28px 0;">
-              <a href="https://bodas-online.example/dashboard" style="display: inline-block; background: linear-gradient(135deg, #ec4899, #be185d); color: #ffffff; padding: 12px 28px; border-radius: 999px; text-decoration: none; font-weight: 600; font-size: 15px;">
+              <a href="https://tu-boda-online.example/dashboard" style="display: inline-block; background: linear-gradient(135deg, #ec4899, #be185d); color: #ffffff; padding: 12px 28px; border-radius: 999px; text-decoration: none; font-weight: 600; font-size: 15px;">
                 Ir a mi Panel de Control
               </a>
             </div>
@@ -641,19 +641,19 @@ export const sendNewUserRegisteredEmail = async ({
     const createdAt = new Date().toISOString();
 
     const result = await resend.emails.send({
-      from: "BodasOnline <onboarding@resend.dev>",
+      from: "Tu Boda Online <onboarding@resend.dev>",
       to: adminEmail,
       subject: `🆕 Nuevo usuario registrado: ${newUsername}`,
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 540px; margin: 0 auto; background-color: #ffffff; border: 1px solid #f3e8ff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
           <div style="background: linear-gradient(135deg, #ec4899, #be185d); padding: 24px; text-align: center; color: white;">
-            <h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">BodasOnline</h1>
+            <h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Tu Boda Online</h1>
             <p style="margin: 6px 0 0; font-size: 14px; opacity: 0.9;">Nuevo usuario registrado</p>
           </div>
           <div style="padding: 32px 24px; color: #1f2937;">
             <p style="margin-top: 0; font-size: 16px;">Hola <strong>${adminRow.username}</strong>,</p>
             <p style="font-size: 15px; color: #4b5563; line-height: 1.5;">
-              Se ha creado una nueva cuenta en BodasOnline. Aquí tienes los
+              Se ha creado una nueva cuenta en Tu Boda Online. Aquí tienes los
               datos básicos para que puedas revisarla desde el panel de admin.
             </p>
             <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">

@@ -9,8 +9,8 @@ const openrouter = createOpenAI({
   apiKey: OPENROUTER_API_KEY,
   compatibility: "strict",
   headers: {
-    "HTTP-Referer": "https://bodas-online.onrender.com",
-    "X-Title": "Bodas Online",
+    "HTTP-Referer": "https://tu-boda-online.onrender.com",
+    "X-Title": "Tu Boda Online",
   },
 });
 
@@ -48,7 +48,7 @@ const PROMPTS = {
     `Actúa como los novios (Judith y Jesús) invitando a "${guestName}" a su boda. 
     Escribe una invitación personalizada, cálida y emocionante por WhatsApp en español. 
     Incluye un toque de alegría y diles que esperas verlos allí. 
-    Menciona que pueden confirmar su asistencia en el siguiente enlace: https://bodas-online.onrender.com/
+    Menciona que pueden confirmar su asistencia en el siguiente enlace: https://tu-boda-online.onrender.com/
     Usa emojis para que sea más visual. Máximo 3 frases.`,
 };
 

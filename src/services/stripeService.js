@@ -74,7 +74,7 @@ export const getPaymentCurrency = () => {
 export const getPaymentDescription = () => {
   return (
     process.env.PAYMENT_DESCRIPTION ||
-    "BodasOnline · Plan Pareja Completo (pago único)"
+    "Tu Boda Online · Plan Pareja Completo (pago único)"
   );
 };
 
