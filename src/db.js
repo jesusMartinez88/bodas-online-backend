@@ -979,6 +979,31 @@ const initializeTables = async () => {
       console.error("Migration warning (page_visits):", err.message);
     }
 
+    // Tabla de clicks en CTAs "Registrar" de la landing.
+    // Misma forma que `page_visits` pero independiente para poder mostrar
+    // la métrica de conversión visita → click en el panel de admin.
+    // Deduplicada por IP en 24 h para no contar dobles-clicks accidentales
+    // de la misma persona.
+    try {
+      await db.run(`
+        CREATE TABLE IF NOT EXISTS register_clicks (
+          id        INTEGER PRIMARY KEY AUTOINCREMENT,
+          ip        TEXT NOT NULL,
+          userAgent TEXT,
+          source    TEXT,
+          clickedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await db.run(
+        `CREATE INDEX IF NOT EXISTS idx_register_clicks_ip ON register_clicks(ip)`,
+      );
+      await db.run(
+        `CREATE INDEX IF NOT EXISTS idx_register_clicks_clicked_at ON register_clicks(clickedAt)`,
+      );
+    } catch (err) {
+      console.error("Migration warning (register_clicks):", err.message);
+    }
+
     // Tabla de códigos de descuento (Plan Pareja Completo).
     //
     // Solo guardamos códigos de porcentaje (no mayor). La expiración es

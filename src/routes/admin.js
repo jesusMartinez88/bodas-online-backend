@@ -27,6 +27,8 @@ router.post(
 
 // Estadísticas de visitas únicas por IP agrupadas por slug.
 router.get("/stats/visits", adminController.getVisitStats);
+// Estadísticas de clicks en CTAs "Registrar" (fire-and-forget desde el front).
+router.get("/stats/register-clicks", adminController.getRegisterClickStats);
 
 // Cuestionario inicial de la landing de un usuario concreto. Lo expone el
 // admin para diseñar la landing en base a las respuestas del cliente.

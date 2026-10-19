@@ -1,6 +1,7 @@
 import db from "../db.js";
 import * as User from "../models/user.js";
 import * as Visit from "../models/visit.js";
+import * as RegisterClick from "../models/registerClick.js";
 import { logError } from "../utils/logger.js";
 
 const PROTECTED_ADMIN_USERNAME = "admin";
@@ -194,5 +195,44 @@ export const getVisitStats = async (req, res) => {
   } catch (error) {
     logError("Error fetching visit stats", error);
     res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+/**
+ * POST /api/stats/register-click
+ *
+ * Endpoint PÚBLICO (sin auth) que registra un click en un CTA de "Registrar".
+ * Fire-and-forget desde el frontend: responde 200 OK sin esperar al INSERT
+ * para no penalizar la navegación.
+ *
+ * Body opcional: `{ source?: 'header' | 'hero' | 'pricing' | 'final' | 'footer' }`.
+ * Sirve solo para análisis futuro; la deduplicación se hace por IP en 24 h.
+ */
+export const trackRegisterClick = async (req, res) => {
+  // Respondemos primero para que la latencia del INSERT no bloquee al cliente.
+  res.json({ success: true });
+
+  const ip = req.ip ?? "unknown";
+  const ua = req.headers["user-agent"] ?? null;
+  const source = typeof req.body?.source === "string" ? req.body.source.slice(0, 32) : null;
+
+  RegisterClick.track(ip, ua, source).catch((err) => {
+    logError("Error tracking register click", err);
+  });
+};
+
+/**
+ * GET /api/admin/stats/register-clicks
+ * Estadísticas globales de clicks únicos en CTAs "Registrar" (por IP).
+ */
+export const getRegisterClickStats = async (req, res) => {
+  try {
+    const stats = await RegisterClick.getStats();
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    logError("Error fetching register-click stats", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
   }
 };
