@@ -28,6 +28,7 @@ import helmet from "helmet";
 import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import compression from "compression";
+import { jsonErrorHandler } from "./middleware/validation.js";
 import { logError } from "./utils/logger.js";
 
 const app = express();
@@ -60,7 +61,7 @@ app.use(
       ? {
           maxAge: 31536000,
           includeSubDomains: true,
-          preload: true,
+          preload: false,
         }
       : false,
   }),
@@ -125,6 +126,10 @@ app.use(
   }),
 );
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+// Un body con JSON inválido es un error del cliente, no del servidor:
+// sin este middleware `express.json()` lanza un SyntaxError que acaba en el
+// manejador global como 500. Con él, la respuesta es 400.
+app.use(jsonErrorHandler);
 app.use(
   "/media/photos",
   (req, res, next) => {

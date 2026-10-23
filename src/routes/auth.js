@@ -2,6 +2,7 @@ import express from "express";
 import * as authController from "../controllers/authController.js";
 import { authenticateJWT } from "../middleware/auth.js";
 import { rateLimit, ipKeyGenerator } from "express-rate-limit";
+import { validateBody } from "../middleware/validation.js";
 import {
   checkUsernameLimiter,
   withConstantLatency,
@@ -39,8 +40,58 @@ const resetCodeLimiter = rateLimit({
   },
 });
 
-router.post("/login", authLimiter, authController.login);
-router.post("/register", authLimiter, authController.register);
+// Esquemas de validación de entrada. Sin ellos, un body ausente o con tipos
+// inesperados llegaba al controlador y reventaba con 500 en vez de 400.
+const loginSchema = {
+  username: {
+    type: "string",
+    required: true,
+    minLength: 1,
+    maxLength: 100,
+    message: "username: es obligatorio (1-100 caracteres)",
+  },
+  password: {
+    type: "string",
+    required: true,
+    minLength: 1,
+    maxLength: 200,
+    message: "password: es obligatorio (1-200 caracteres)",
+  },
+};
+
+const registerSchema = {
+  username: {
+    type: "string",
+    required: true,
+    minLength: 3,
+    maxLength: 50,
+    message: "username: debe tener entre 3 y 50 caracteres",
+  },
+  email: {
+    // Opcional (la columna `users.email` admite NULL), pero si viene debe
+    // ser un email válido. El formulario de registro del front siempre lo
+    // envía; esto solo evita que un cliente externo meta basura.
+    type: "email",
+    required: false,
+    maxLength: 255,
+    message: "email: debe ser un email válido",
+  },
+  password: {
+    type: "string",
+    required: true,
+    minLength: 8,
+    maxLength: 200,
+    message: "password: debe tener al menos 8 caracteres",
+  },
+};
+
+router.post("/login", authLimiter, validateBody(loginSchema), authController.login);
+router.post(
+  "/register",
+  authLimiter,
+  validateBody(registerSchema),
+  authController.register,
+);
 router.get(
   "/check-username",
   checkUsernameLimiter,

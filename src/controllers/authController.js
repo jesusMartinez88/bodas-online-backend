@@ -9,20 +9,31 @@ import {
 } from "../services/emailService.js";
 import { isValidEmail } from "../utils/validation.js";
 
+/**
+ * Hash bcrypt de un valor aleatorio que NUNCA corresponde a una contraseña
+ * real. Se compara contra él cuando el usuario no existe, para que el tiempo
+ * de respuesta del login sea el mismo exista o no la cuenta (evita la
+ * enumeración de usuarios midiendo la latencia de la respuesta).
+ */
+const DUMMY_PASSWORD_HASH =
+  "$2b$10$rQImcTnS86p1XQg6pc/2.unf9U3my88vMpyuJA5jDm5EBZIieCUmK";
+
 export const login = async (req, res) => {
-  const { username, password } = req.body;
-
   try {
-    const user = await User.findByUsername(username);
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid credentials",
-      });
-    }
+    const { username, password } = req.body ?? {};
 
-    const isMatch = await User.comparePassword(password, user.password);
-    if (!isMatch) {
+    const user = await User.findByUsername(username);
+
+    // Comparamos siempre contra un hash, exista o no el usuario, para que
+    // ambos caminos cuesten lo mismo.
+    const isMatch = await User.comparePassword(
+      password ?? "",
+      user ? user.password : DUMMY_PASSWORD_HASH,
+    );
+
+    if (!user || !isMatch) {
+      // Mismo mensaje y mismo status para "usuario inexistente" y
+      // "contraseña incorrecta": no revelamos qué usernames existen.
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
@@ -70,7 +81,7 @@ export const login = async (req, res) => {
 };
 
 export const register = async (req, res) => {
-  const { username, email, password, estimatedGuests } = req.body;
+  const { username, email, password, estimatedGuests } = req.body ?? {};
 
   if (!username || !password) {
     return res.status(400).json({
