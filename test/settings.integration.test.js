@@ -8,7 +8,9 @@ process.env.DB_PATH =
   process.env.DB_PATH || "file:data/wedding.settings.test.db";
 
 const { default: app } = await import("../src/app.js");
-const { default: db } = await import("../src/db.js");
+const { default: db, initializationPromise } = await import("../src/db.js");
+
+await initializationPromise;
 
 const token = jwt.sign({ id: 1, userId: 1, role: "admin", slug: "admin" }, process.env.JWT_SECRET, {
   expiresIn: "1h",
@@ -31,35 +33,6 @@ const request = async (path, options = {}) => {
 };
 
 const resetHighchairsSetting = async () => {
-  // Ensure settings table has proper schema for tests
-  try {
-    await db.run(`DROP TABLE IF EXISTS settings_temp`);
-    await db.run(`
-      CREATE TABLE settings_temp (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        userId INTEGER,
-        key TEXT NOT NULL,
-        value TEXT,
-        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(userId, key),
-        FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
-      )
-    `);
-    
-    // Copy existing data
-    await db.run(`
-      INSERT INTO settings_temp (userId, key, value, updatedAt)
-      SELECT userId, key, value, updatedAt FROM settings WHERE userId IS NOT NULL
-    `);
-    
-    // Replace table
-    await db.run(`DROP TABLE settings`);
-    await db.run(`ALTER TABLE settings_temp RENAME TO settings`);
-  } catch (err) {
-    // If recreation fails, just ensure the setting exists
-    console.warn('Table recreation failed, using fallback:', err.message);
-  }
-  
   await db.run(
     `INSERT OR REPLACE INTO settings (userId, key, value) VALUES (1, 'enable_highchairs', '0')`,
   );
@@ -70,8 +43,11 @@ test.beforeEach(async () => {
 });
 
 test.after(async () => {
-  await resetHighchairsSetting();
-  await new Promise((resolve) => server.close(resolve));
+  try {
+    await resetHighchairsSetting();
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test("GET /api/settings returns enable_highchairs default false", async () => {

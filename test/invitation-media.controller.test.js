@@ -45,8 +45,12 @@ test("cover uploads are decoded and stored exclusively as WebP", async () => {
   await controller.uploadCover(req, res, failNext);
 
   assert.equal(res.statusCode, 201);
-  assert.equal(res.body.data.url, "/media/fotos/test-couple/cover.webp");
-  const stored = await readFile(join(mediaRoot, "test-couple", "cover.webp"));
+  assert.equal(
+    res.body.data.url,
+    "/media/photos/test-couple/covery/cover.webp",
+  );
+  const coverDirectory = join(mediaRoot, "test-couple", "covery");
+  const stored = await readFile(join(coverDirectory, "cover.webp"));
   assert.equal((await sharp(stored).metadata()).format, "webp");
 
   const replacement = await sharp({
@@ -59,7 +63,7 @@ test("cover uploads are decoded and stored exclusively as WebP", async () => {
     createResponse(),
     failNext,
   );
-  assert.deepEqual(await readdir(join(mediaRoot, "test-couple")), ["cover.webp"]);
+  assert.deepEqual(await readdir(coverDirectory), ["cover.webp"]);
 });
 
 test("rejects SVG data instead of persisting the original file", async () => {

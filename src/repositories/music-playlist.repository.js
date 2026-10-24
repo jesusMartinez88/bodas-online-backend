@@ -93,25 +93,18 @@ export const deleteSong = async (id, userId) => {
 };
 
 export const reorderSongsTransaction = async (songs, userId) => {
-  await db.execute("BEGIN TRANSACTION");
-
-  try {
+  await db.transaction(async (transaction) => {
     for (const song of songs) {
-      const result = await db.run(
+      const result = await transaction.execute(
         "UPDATE music_playlist SET order_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND userId = ?",
         [song.order, song.id, userId],
       );
 
-      if (result.changes === 0) {
+      if (result.rowsAffected === 0) {
         const notFoundError = new Error(`Song with id ${song.id} not found or belongs to another user`);
         notFoundError.code = "NOT_FOUND";
         throw notFoundError;
       }
     }
-
-    await db.execute("COMMIT");
-  } catch (error) {
-    await db.execute("ROLLBACK");
-    throw error;
-  }
+  });
 };
