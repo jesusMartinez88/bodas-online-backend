@@ -63,6 +63,31 @@ dominio registrable (hoy: `onrender.com`). Si el frontend pasa a un dominio
 propio, hay que ponerlo en `none` —la verificación de `Origin` sigue
 protegiendo frente a CSRF— y conviene añadir ese origen en `ALLOWED_ORIGINS`.
 
+### Pagos (Stripe)
+
+```
+STRIPE_SECRET_KEY=sk_test_...          # clave privada del servidor
+STRIPE_PUBLISHABLE_KEY=pk_test_...      # clave pública para el navegador
+STRIPE_WEBHOOK_SECRET=whsec_...         # secreto de firma del webhook
+```
+
+`STRIPE_WEBHOOK_SECRET` es **obligatorio** para que el webhook funcione: sin
+él el backend responde `500` a propósito y no acepta ningún evento (es
+preferible a aceptar eventos sin verificar).
+
+En el panel de Stripe hay que crear el endpoint
+`https://<tu-backend>/api/payments/webhook` con los eventos
+`payment_intent.succeeded`, `payment_intent.processing`,
+`payment_intent.payment_failed` y `payment_intent.canceled`, y copiar el
+`whsec_…` a `STRIPE_WEBHOOK_SECRET`.
+
+El webhook **verifica la firma** sobre el cuerpo crudo de la petición
+(`stripe.webhooks.constructEvent`) y es **idempotente**: cada evento se
+reclama en la tabla `webhook_events` por su `eventId`, de modo que los
+reintentos de Stripe no reprocesan el pago ni reenvían el email de
+confirmación. Si el procesamiento falla, se devuelve `500` (y se libera el
+reclamo) para que Stripe reintente. Detalle completo en `SECURITY.md` §11.
+
 ## Uso
 
 Modo desarrollo:
@@ -178,6 +203,15 @@ Notas:
 - En local usa `DB_PATH` (`file:data/wedding.db` por defecto).
 - En producción usa `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`.
 - Además, `src/db.js` crea la tabla automáticamente con `CREATE TABLE IF NOT EXISTS` para mantener compatibilidad incremental.
+
+### Pagos (Stripe)
+
+- `GET /api/payments/config` - Clave publicable y flags de habilitación (público)
+- `POST /api/payments/create-intent` - Crea el PaymentIntent (JWT requerido)
+- `POST /api/payments/create-checkout-session` - Crea una Checkout Session alojada (JWT requerido)
+- `POST /api/payments/validate-discount` - Valida un código de descuento (JWT requerido)
+- `GET /api/payments/me` - Historial de pagos del usuario (JWT requerido)
+- `POST /api/payments/webhook` - **Endpoint público de Stripe.** Verifica la firma (`stripe-signature`) sobre el cuerpo crudo, es idempotente por `eventId` y devuelve `500` si el procesamiento falla, para que Stripe reintente
 
 ## Ejemplo de Respuesta
 

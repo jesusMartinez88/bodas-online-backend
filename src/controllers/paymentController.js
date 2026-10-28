@@ -1,4 +1,5 @@
 import * as Payment from "../models/payment.js";
+import * as WebhookEvent from "../models/webhookEvent.js";
 import * as User from "../models/user.js";
 import {
   getStripeClient,
@@ -347,6 +348,15 @@ export const listMine = async (req, res) => {
  *   - payment_intent.processing        → actualizamos status
  *   - payment_intent.payment_failed    → actualizamos status (sin activar)
  *   - payment_intent.canceled          → actualizamos status
+ *
+ * Idempotencia: Stripe reintenta la entrega hasta 3 días después y permite
+ * reenviar eventos a mano desde el panel. Cada evento se reclama en la tabla
+ * `webhook_events` (ver `models/webhookEvent.js`): solo el primer worker
+ * procesa el evento, el resto lo ignoran. Así el email de "pago recibido"
+ * no se duplica.
+ *
+ * Si el procesamiento falla devolvemos 500 (y liberamos el claim) para que
+ * Stripe reintente: antes se devolvía 200 y el pago se perdía en silencio.
  */
 export const webhook = async (req, res) => {
   if (!isStripeEnabled()) {
@@ -376,6 +386,34 @@ export const webhook = async (req, res) => {
   } catch (err) {
     logError(`[payment] Webhook signature verification failed: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Todo evento de Stripe lleva id. Si no lo tiene, no podemos deduplicar
+  // la entrega: lo rechazamos en lugar de procesarlo a ciegas.
+  const eventId = event?.id;
+  if (!eventId) {
+    logError("[payment] Webhook event without id. Rejecting webhook.");
+    return res.status(400).send("Webhook Error: missing event id");
+  }
+
+  // Reclamo del evento. Solo un worker puede procesar cada `eventId`.
+  let claim;
+  try {
+    claim = await WebhookEvent.claimEvent(eventId, event.type);
+  } catch (err) {
+    logError("[payment] Could not claim webhook event", err);
+    // Sin claim no podemos garantizar la idempotencia: devolvemos 500 para
+    // que Stripe reintente en vez de procesar el evento a ciegas.
+    return res.status(500).send("Webhook processing error");
+  }
+
+  if (!claim.claimed) {
+    // Entrega duplicada (reintento de Stripe o reenvío manual). Ya se
+    // procesó (o lo está procesando otro worker): no hay nada que hacer.
+    console.log(
+      `[payment] Evento ${eventId} (${event.type}) ignorado: ${claim.reason}`,
+    );
+    return res.status(200).json({ received: true, duplicate: true });
   }
 
   try {
@@ -451,9 +489,33 @@ export const webhook = async (req, res) => {
     }
   } catch (err) {
     logError(`[payment] Error handling webhook event ${event.type}`, err);
-    // Devolvemos 200 igualmente: Stripe reintentará si devolvemos
-    // error, pero el problema está en nuestra lógica, no en la entrega.
-    // Lo logueamos y seguimos para evitar loops de reintento.
+    // Liberamos el claim para que el reintento de Stripe pueda volver a
+    // procesar el evento (si lo dejáramos, el reintento se saltaría el
+    // evento y el pago se perdería).
+    try {
+      await WebhookEvent.releaseEvent(eventId);
+    } catch (releaseErr) {
+      logError(
+        "[payment] Could not release webhook event claim",
+        releaseErr,
+      );
+    }
+    // 500 → Stripe reintenta la entrega. Con la idempotencia activa el
+    // reintento es seguro: no se duplica el email ni se pierde el pago.
+    return res.status(500).json({
+      received: false,
+      message: "Error processing webhook event",
+    });
+  }
+
+  // El evento se procesó bien: lo marcamos para que las entregas
+  // duplicadas se ignoren.
+  try {
+    await WebhookEvent.markEventProcessed(eventId);
+  } catch (err) {
+    logError("[payment] Could not mark webhook event as processed", err);
+    // Sin marcar, un reintento volvería a procesar el evento. Es preferible
+    // a perder el pago, pero lo dejamos registrado en el log.
   }
 
   res.json({ received: true });

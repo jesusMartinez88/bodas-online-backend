@@ -262,6 +262,35 @@ const initializeTables = async () => {
       ON payments(userId, createdAt DESC)
     `);
 
+    // Tabla de idempotencia del webhook de Stripe.
+    //
+    // Stripe reintenta la entrega de un webhook cuando la respuesta no es
+    // 2xx (y el panel permite reenviar eventos a mano). Sin esta tabla cada
+    // reintento reprocesaba el evento y reenviaba el email de "pago
+    // recibido" al cliente.
+    //
+    // `eventId` es la clave primaria: es el id único e inmutable del evento
+    // (`evt_...`). El `INSERT OR IGNORE` hace de forma atómica el "solo uno
+    // procesa este evento". `status` distingue entre `processing` (en curso)
+    // y `processed` (hecho; las entregas posteriores se ignoran).
+    //
+    // No tiene FK: los eventos de Stripe son globales, no pertenecen a
+    // ningún tenant.
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS webhook_events (
+        eventId   TEXT PRIMARY KEY,
+        type      TEXT NOT NULL,
+        status    TEXT NOT NULL DEFAULT 'processing',
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.run(`
+      CREATE INDEX IF NOT EXISTS idx_webhook_events_status_updated
+      ON webhook_events(status, updatedAt)
+    `);
+
     // Las configuraciones por defecto se inicializan por usuario en initUserDefaults()
 
     // Tabla de mesas
