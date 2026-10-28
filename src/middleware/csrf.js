@@ -1,17 +1,18 @@
 /**
  * Protección CSRF por verificación de `Origin`.
  *
- * ¿Por qué hace falta si la cookie es `SameSite`?
- * Porque `SameSite` depende de la topología:
- *   · Hoy frontend y backend comparten sitio (`*.onrender.com`), así que
- *     `SameSite=Lax` ya impide que un sitio de terceros envíe la cookie en
- *     sus peticiones.
- *   · Si el frontend pasa a un dominio propio, la cookie tendría que ir en
- *     `SameSite=None` (obligatorio para que viaje entre sitios), y entonces
- *     `SameSite` deja de proteger y **sí** haría falta un token CSRF.
+ * ¿Por qué hace falta si la cookie es `SameSite=None`?
+ * Porque `SameSite` depende de la topología y aquí NO protege:
+ *   · `onrender.com` está en la Public Suffix List, así que el frontend
+ *     (`tubodaonline.onrender.com`) y el backend
+ *     (`boda-backend-4e6z.onrender.com`) son **sitios distintos** para el
+ *     navegador. La cookie de sesión necesita `SameSite=None` para viajar en
+ *     las XHR, y con `SameSite=None` un sitio de terceros **sí** puede
+ *     enviarla.
+ *   · Por eso esta verificación de `Origin` es la que protege de verdad, no
+ *     el atributo `SameSite`.
  *
- * La verificación de `Origin` cubre los dos casos y no requiere estado en
- * servidor:
+ * La verificación de `Origin` no requiere estado en servidor:
  *   · Los navegadores **siempre** envían `Origin` en POST/PUT/PATCH/DELETE.
  *   · Una petición CSRF desde otro sitio lleva el `Origin` del atacante, que
  *     no está en la lista de permitidos → 403.

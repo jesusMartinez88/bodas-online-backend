@@ -8,12 +8,22 @@
  * Atributos:
  *   · `httpOnly`  → invisible para `document.cookie`. Un XSS no puede leerla.
  *   · `secure`    → solo por HTTPS (siempre activo en producción).
- *   · `sameSite`  → `lax` por defecto. Los dos hosts (`tubodaonline.onrender.com`
- *                   y `boda-backend-4e6z.onrender.com`) comparten sitio
- *                   (eTLD+1 = `onrender.com`), así que la cookie viaja en las
- *                   XHR cross-origin. Si el frontend pasa a un dominio propio
- *                   habría que poner `none` (y entonces la verificación de
- *                   `Origin` de `middleware/csrf.js` es la que protege).
+ *   · `sameSite`  → `none` por defecto. IMPORTANTE: `onrender.com` está en la
+ *                   Public Suffix List (igual que `vercel.app`, `herokuapp.com`
+ *                   o `pages.dev`), así que `tubodaonline.onrender.com` y
+ *                   `boda-backend-4e6z.onrender.com` son **sitios distintos**
+ *                   para el navegador: Chrome envía `sec-fetch-site:
+ *                   cross-site` en las peticiones entre ellos.
+ *
+ *                   Consecuencia: con `SameSite=Lax` el navegador GUARDA la
+ *                   cookie pero NO la envía en las XHR cross-site. La cookie se
+ *                   quedaba guardada y, aun así, `/api/auth/me` respondía 401
+ *                   siempre y la sesión moría sola en el primer `load`.
+ *
+ *                   Con `SameSite=None` la cookie sí viaja. La protección
+ *                   frente a CSRF la aporta la verificación de `Origin` de
+ *                   `middleware/csrf.js` (que ya está y cubre POST/PUT/PATCH/
+ *                   DELETE), no el atributo `SameSite`.
  *   · `path=/`    → válida para toda la API.
  *
  * La vida de la cookie coincide con la del JWT (24 h).
@@ -26,16 +36,23 @@ const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
 const isProduction = process.env.NODE_ENV === "production";
 
-export const sessionCookieOptions = () => ({
-  httpOnly: true,
-  secure: isProduction,
-  sameSite: process.env.COOKIE_SAME_SITE?.trim() || "lax",
-  path: "/",
-  maxAge: SESSION_TTL_MS,
-  ...(process.env.COOKIE_DOMAIN?.trim()
-    ? { domain: process.env.COOKIE_DOMAIN.trim() }
-    : {}),
-});
+export const sessionCookieOptions = () => {
+  const sameSite = process.env.COOKIE_SAME_SITE?.trim() || "none";
+  // `SameSite=None` sin `Secure` hace que el navegador RECHACE la cookie
+  // entera: no es opcional.
+  const secure = sameSite.toLowerCase() === "none" ? true : isProduction;
+
+  return {
+    httpOnly: true,
+    secure,
+    sameSite,
+    path: "/",
+    maxAge: SESSION_TTL_MS,
+    ...(process.env.COOKIE_DOMAIN?.trim()
+      ? { domain: process.env.COOKIE_DOMAIN.trim() }
+      : {}),
+  };
+};
 
 /** Emite la cookie de sesión con el token indicado. */
 export const setSessionCookie = (res, token) => {

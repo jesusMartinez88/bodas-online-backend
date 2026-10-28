@@ -93,7 +93,11 @@ test("El login emite una cookie de sesión httpOnly", async () => {
   assert.ok(session, "El login debe emitir la cookie de sesión");
   assert.match(session, /HttpOnly/i, "La cookie debe ser httpOnly");
   assert.match(session, /Path=\//i, "La cookie debe valer para toda la API");
-  assert.match(session, /SameSite=Lax/i, "Debe llevar SameSite=Lax");
+  // `onrender.com` está en la Public Suffix List: frontend y backend son
+  // sitios distintos, así que la cookie necesita `SameSite=None` (y `Secure`
+  // es obligatorio para que el navegador no la rechace).
+  assert.match(session, /SameSite=None/i, "Debe llevar SameSite=None");
+  assert.match(session, /Secure/i, "SameSite=None exige Secure");
   assert.match(session, /Max-Age=86400/i, "Debe vivir 24 h como el JWT");
 
   // El valor de la cookie es el propio JWT.

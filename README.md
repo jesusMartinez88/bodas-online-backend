@@ -53,15 +53,24 @@ ORIGIN_URL=https://tubodaonline.onrender.com
 ALLOWED_ORIGINS=https://panel.tubodaonline.com,https://www.tubodaonline.com
 
 # Política de la cookie de sesión (opcional)
-COOKIE_SAME_SITE=lax
+COOKIE_SAME_SITE=none
 # COOKIE_DOMAIN=.tubodaonline.com
 ```
 
 La sesión viaja en una cookie `httpOnly` (`tb_session`), no en `localStorage`.
-`COOKIE_SAME_SITE` debe ser `lax` mientras frontend y backend compartan
-dominio registrable (hoy: `onrender.com`). Si el frontend pasa a un dominio
-propio, hay que ponerlo en `none` —la verificación de `Origin` sigue
-protegiendo frente a CSRF— y conviene añadir ese origen en `ALLOWED_ORIGINS`.
+
+`COOKIE_SAME_SITE` debe ser `none` mientras frontend y backend estén en
+dominios de Render: **`onrender.com` está en la Public Suffix List**, así que
+`tubodaonline.onrender.com` y `boda-backend-4e6z.onrender.com` son sitios
+**distintos** para el navegador (Chrome envía `sec-fetch-site: cross-site`).
+Con `lax` el navegador guarda la cookie pero no la envía en las XHR, y la
+sesión muere en la primera llamada a `/api/auth/me`. `none` exige `Secure`
+—que ya se fuerza en producción— y la protección frente a CSRF la aporta la
+verificación de `Origin`, no el atributo `SameSite`.
+
+Si el frontend pasa a un dominio propio (mismo registrable para ambos hosts),
+el valor puede volver a `lax`, y ese origen conviene añadirlo a
+`ALLOWED_ORIGINS`.
 
 ### Pagos (Stripe)
 
