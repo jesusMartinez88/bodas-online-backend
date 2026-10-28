@@ -13,6 +13,12 @@ const router = express.Router();
 // Limitador estricto para login + register: 10 req / hora.
 // NO se aplica a check-username, que tiene su propio limitador más permisivo
 // (checkUsernameLimiter) y se ejecuta solo al submit del form.
+//
+// `skipSuccessfulRequests` hace que solo cuenten los intentos **fallidos**:
+// el límite existe para frenar la fuerza bruta, no para castigar a quien
+// entra bien. Antes contaba también los logins correctos, así que un usuario
+// legítimo (o cualquiera que compartía IP por CGNAT) podía agotar la cuota y
+// quedarse sin poder entrar durante una hora.
 const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 10,
@@ -20,6 +26,8 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   // `ipKeyGenerator` espera un string (la IP), no el Request.
   keyGenerator: (req) => ipKeyGenerator(req.ip),
+  // Solo los intentos fallidos consumen cuota (un 4xx/5xx cuenta; un 2xx no).
+  skipSuccessfulRequests: true,
   message: {
     success: false,
     message: "Too many login attempts, please try again in an hour.",
