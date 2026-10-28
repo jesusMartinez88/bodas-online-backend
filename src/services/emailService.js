@@ -5,6 +5,46 @@ let resend = null;
 let emailEnabled = false;
 
 /**
+ * Remitente de los emails.
+ *
+ * `onboarding@resend.dev` es el dominio de prueba de Resend y tiene una regla
+ * dura: **solo permite enviar al email del titular de la cuenta**. Cualquier
+ * otro destinatario recibe un 403 y el email no sale.
+ *
+ * Para que el correo funcione para todos los tenants hay que verificar un
+ * dominio propio en <https://resend.com/domains> y definir:
+ *
+ *     RESEND_FROM_EMAIL="Tu Boda Online <codigo@tu-dominio>"
+ *
+ * Sin esa variable el comportamiento es el de siempre (solo el titular de la
+ * cuenta recibe emails), pero **no se rompe nada**.
+ */
+const fromAddress =
+  process.env.RESEND_FROM_EMAIL?.trim() ||
+  "Tu Boda Online <onboarding@resend.dev>";
+
+/**
+ * Envía un email y normaliza el resultado.
+ *
+ * Resend **no lanza** en los errores de validación: devuelve
+ * `{ data: null, error: {...} }`. Sin esta comprobación, un 403 (p. ej. un
+ * remitente sin verificar) se reportaba como "✉️ Email enviado" y la función
+ * devolvía un valor truthy, de modo que quien la llamaba daba el envío por
+ * hecho. Aquí el error se registra y se devuelve `null`.
+ */
+const sendEmail = async (payload) => {
+  const result = await resend.emails.send(payload);
+  if (result?.error) {
+    console.error(
+      "Error sending email:",
+      result.error.message || result.error,
+    );
+    return null;
+  }
+  return result;
+};
+
+/**
  * Inicializar el servicio de email con Resend
  */
 export const initializeEmailService = () => {
@@ -103,8 +143,8 @@ export const sendNewGuestEmail = async (
       </table>
     `;
 
-    const result = await resend.emails.send({
-      from: "Wedding API <onboarding@resend.dev>",
+    const result = await sendEmail({
+      from: fromAddress,
       to: emailOwner,
       subject: `🎉 Nuevo Invitado: ${guest.name}`,
       html: `
@@ -137,6 +177,7 @@ export const sendNewGuestEmail = async (
       `,
     });
 
+    if (!result) return null;
     console.log("✉️ Email enviado:", emailOwner);
     return result;
   } catch (error) {
@@ -154,8 +195,8 @@ export const sendGuestConfirmationEmail = async (guest) => {
   }
 
   try {
-    const result = await resend.emails.send({
-      from: "Wedding API <onboarding@resend.dev>",
+    const result = await sendEmail({
+      from: fromAddress,
       to: guest.email,
       subject: "🎉 ¡Confirmamos tu registro en la boda!",
       html: `
@@ -197,6 +238,7 @@ export const sendGuestConfirmationEmail = async (guest) => {
       `,
     });
 
+    if (!result) return null;
     console.log("✉️ Confirmation email sent:", result.id);
     return result;
   } catch (error) {
@@ -271,8 +313,8 @@ export const sendContactMessageEmail = async ({
       )
       .join("<br>");
 
-    const result = await resend.emails.send({
-      from: "Wedding API <onboarding@resend.dev>",
+    const result = await sendEmail({
+      from: fromAddress,
       to: emailOwner,
       ...(replyToHeader ? { replyTo: replyToHeader } : {}),
       subject: subjectLine,
@@ -384,6 +426,7 @@ export const sendContactMessageEmail = async ({
       `,
     });
 
+    if (!result) return null;
     console.log("✉️ Contact message email sent to:", emailOwner);
     return result;
   } catch (error) {
@@ -410,8 +453,8 @@ export const sendDeleteCodeEmail = async (code, userId) => {
       return null;
     }
 
-    const result = await resend.emails.send({
-      from: "Wedding API <onboarding@resend.dev>",
+    const result = await sendEmail({
+      from: fromAddress,
       to: emailUser.email,
       subject: "🛑 Código para eliminación masiva de invitados",
       html: `
@@ -422,6 +465,10 @@ export const sendDeleteCodeEmail = async (code, userId) => {
       `,
     });
 
+    // El error de envío (p. ej. 403 por remitente sin verificar) lo detecta
+    // `sendEmail`, que devuelve null. El propietario se queda sin código, así
+    // que el llamante debe avisarle en lugar de dar el envío por hecho.
+    if (!result) return null;
     console.log("✉️ Delete code sent to:", emailUser.email);
     return result;
   } catch (error) {
@@ -448,8 +495,8 @@ export const sendPasswordResetCodeEmail = async ({ to, username, code }) => {
   }
 
   try {
-    const result = await resend.emails.send({
-      from: "Tu Boda Online <onboarding@resend.dev>",
+    const result = await sendEmail({
+      from: fromAddress,
       to: recipient,
       subject: "🔑 Tu código de recuperación de contraseña",
       html: `
@@ -480,6 +527,7 @@ export const sendPasswordResetCodeEmail = async ({ to, username, code }) => {
       `,
     });
 
+    if (!result) return null;
     console.log("✉️ Password reset code sent to:", recipient);
     return result;
   } catch (error) {
@@ -536,8 +584,8 @@ export const sendPaymentReceivedEmail = async ({
   const amountStr = formatMoney(amount, currency);
 
   try {
-    const result = await resend.emails.send({
-      from: "Tu Boda Online <onboarding@resend.dev>",
+    const result = await sendEmail({
+      from: fromAddress,
       to: recipient,
       subject: "🎉 ¡Pago recibido! Tu boda está activa",
       html: `
@@ -586,6 +634,7 @@ export const sendPaymentReceivedEmail = async ({
       `,
     });
 
+    if (!result) return null;
     console.log(
       `✉️ Email de pago recibido enviado a ${recipient} (${amountStr}, intent=${paymentIntentId || "?"})`,
     );
@@ -640,8 +689,8 @@ export const sendNewUserRegisteredEmail = async ({
 
     const createdAt = new Date().toISOString();
 
-    const result = await resend.emails.send({
-      from: "Tu Boda Online <onboarding@resend.dev>",
+    const result = await sendEmail({
+      from: fromAddress,
       to: adminEmail,
       subject: `🆕 Nuevo usuario registrado: ${newUsername}`,
       html: `
@@ -683,6 +732,7 @@ export const sendNewUserRegisteredEmail = async ({
       `,
     });
 
+    if (!result) return null;
     console.log(
       `✉️ Nuevo-registro notificado a admin ${adminRow.username} <${adminEmail}> (nuevo user=${newUsername}, id=${newUserId}, t=${createdAt})`,
     );

@@ -10,6 +10,7 @@ import {
   MEDIA_KIND_MUSIC,
 } from "../constants/media.js";
 import * as User from "../models/user.js";
+import { MAX_AUDIO_BYTES } from "../middleware/uploadPolicy.js";
 
 const MAX_PIXELS = 20_000_000;
 const MAX_DIMENSION = 2560;
@@ -89,6 +90,32 @@ const saveAsWebp = async (file, targetPath) => {
     await rename(temporaryPath, targetPath);
   } finally {
     await rm(temporaryPath, { force: true });
+  }
+};
+
+/**
+ * Convierte y guarda varios archivos como WebP de forma atómica.
+ *
+ * Si un archivo falla (no es una imagen válida, supera el límite de píxeles…),
+ * se borran los ya guardados: nunca queda una subida a medias que el cliente
+ * no conoce (y que ocuparía sitio del límite de 12).
+ */
+const saveAllAsWebp = async (files, directory, kind, slug) => {
+  const urls = [];
+  const savedNames = [];
+  try {
+    for (const file of files) {
+      const name = `${randomUUID()}.webp`;
+      await saveAsWebp(file, join(directory, name));
+      savedNames.push(name);
+      urls.push(mediaUrl(slug, kind, name));
+    }
+    return urls;
+  } catch (error) {
+    await Promise.all(
+      savedNames.map((name) => rm(join(directory, name), { force: true })),
+    );
+    throw error;
   }
 };
 
@@ -194,12 +221,12 @@ export const uploadGallery = async (req, res, next) => {
         message: "A maximum of 12 gallery photos is allowed",
       });
     }
-    const urls = [];
-    for (const file of files) {
-      const name = `${randomUUID()}.webp`;
-      await saveAsWebp(file, join(directory, name));
-      urls.push(mediaUrl(slug, MEDIA_KIND_GALLERY, name));
-    }
+    const urls = await saveAllAsWebp(
+      files,
+      directory,
+      MEDIA_KIND_GALLERY,
+      slug,
+    );
     res.status(201).json({ success: true, data: { urls } });
   } catch (error) {
     next(error);
@@ -225,12 +252,12 @@ export const uploadHistory = async (req, res, next) => {
         message: "A maximum of 12 history photos is allowed",
       });
     }
-    const urls = [];
-    for (const file of files) {
-      const name = `${randomUUID()}.webp`;
-      await saveAsWebp(file, join(directory, name));
-      urls.push(mediaUrl(slug, MEDIA_KIND_HISTORY, name));
-    }
+    const urls = await saveAllAsWebp(
+      files,
+      directory,
+      MEDIA_KIND_HISTORY,
+      slug,
+    );
     res.status(201).json({ success: true, data: { urls } });
   } catch (error) {
     next(error);
@@ -245,6 +272,11 @@ export const uploadMusicForUser = async (req, res, next) => {
     }
     if (target.role === "admin") {
       return res.status(403).json({ success: false, message: "Cannot change admin music" });
+    }
+    // Defensa en profundidad: multer ya limita el tamaño, pero se comprueba
+    // aquí también para no depender de un único control.
+    if (req.file?.buffer?.length > MAX_AUDIO_BYTES) {
+      return res.status(413).json({ success: false, message: "Audio file is too large" });
     }
     if (!isMp3(req.file)) {
       return res.status(415).json({ success: false, message: "Only valid MP3 audio is allowed" });

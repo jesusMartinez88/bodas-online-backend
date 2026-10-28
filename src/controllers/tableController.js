@@ -2,18 +2,17 @@ import * as Table from "../models/table.js";
 import * as Guest from "../models/guest.js";
 import * as Setting from "../models/setting.js";
 import { sendDeleteCodeEmail } from "../services/emailService.js";
+import {
+  DELETE_PURPOSE,
+  clearDeleteCode,
+  consumeDeleteCode,
+  issueDeleteCode,
+  markDeleteCodeSent,
+} from "../services/deleteCodeService.js";
 
 const mapTableResponse = (table) => {
   if (!table) return null;
   return table;
-};
-
-// sistema simple de código de confirmación para borrado masivo de mesas
-let pendingDeleteCode = null;
-let pendingDeleteExpiry = null;
-
-const generateDeleteCode = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 export const getTables = async (req, res) => {
@@ -259,19 +258,40 @@ export const deleteTable = async (req, res) => {
 export const requestDeleteCode = async (req, res) => {
   try {
     const userId = req.userContext.userId;
-    pendingDeleteCode = generateDeleteCode();
-    pendingDeleteExpiry = Date.now() + 15 * 60 * 1000;
+    // El código se emite dentro del espacio de nombres del propio tenant:
+    // no habilita ni invalida el de ningún otro.
+    const { code, shouldSendEmail } = issueDeleteCode(
+      userId,
+      DELETE_PURPOSE.TABLES,
+    );
 
-    console.log("🔐 Código de borrado de mesas generado:", pendingDeleteCode);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("🔐 Código de borrado de mesas generado:", code);
+    }
 
-    await sendDeleteCodeEmail(pendingDeleteCode, userId);
+    if (shouldSendEmail) {
+      const sent = await sendDeleteCodeEmail(code, userId);
+      if (sent) {
+        markDeleteCodeSent(userId, DELETE_PURPOSE.TABLES);
+      } else if (process.env.NODE_ENV === "production") {
+        // El código solo se recibe por email: si el envío falla, el propietario
+        // nunca podrá conocerlo. Se invalida y se informa con claridad en vez
+        // de responder 200 prometiendo un envío que no se ha hecho.
+        clearDeleteCode(userId, DELETE_PURPOSE.TABLES);
+        return res.status(503).json({
+          success: false,
+          error:
+            "No se pudo enviar el código por email. Inténtalo de nuevo en unos minutos.",
+        });
+      }
+    }
 
     const responsePayload = {
       success: true,
       message: "Confirmation code sent via email",
     };
     if (process.env.NODE_ENV !== "production") {
-      responsePayload.code = pendingDeleteCode;
+      responsePayload.code = code;
     }
     res.json(responsePayload);
   } catch (error) {
@@ -289,29 +309,21 @@ export const deleteAllTables = async (req, res) => {
     const { code } = req.query;
     const userId = req.userContext.userId;
 
-    if (!code) {
+    // El código se valida contra el del propio tenant: el de otro usuario no
+    // existe en su espacio de nombres y por tanto nunca se acepta.
+    const validation = consumeDeleteCode(userId, DELETE_PURPOSE.TABLES, code);
+    if (!validation.ok) {
+      const error =
+        validation.reason === "missing"
+          ? "Confirmation code missing"
+          : validation.reason === "expired"
+            ? "Confirmation code expired"
+            : "Invalid confirmation code";
       return res.status(400).json({
         success: false,
-        error: "Confirmation code missing",
+        error,
       });
     }
-    if (code !== pendingDeleteCode) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid confirmation code",
-      });
-    }
-    if (Date.now() > pendingDeleteExpiry) {
-      pendingDeleteCode = null;
-      pendingDeleteExpiry = null;
-      return res.status(400).json({
-        success: false,
-        error: "Confirmation code expired",
-      });
-    }
-
-    pendingDeleteCode = null;
-    pendingDeleteExpiry = null;
 
     await Guest.unassignAllGuestsFromTables(userId);
 

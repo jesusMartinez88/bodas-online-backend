@@ -27,6 +27,42 @@ NODE_ENV=development
 DB_PATH=./data/wedding.db
 ```
 
+### Envío de emails (Resend)
+
+```
+RESEND_API_KEY=re_your_api_key_here
+RESEND_FROM_EMAIL="Tu Boda Online <codigo@tu-dominio>"
+```
+
+`RESEND_FROM_EMAIL` es **opcional**, pero sin ella el remitente por defecto es
+`onboarding@resend.dev`, el dominio de prueba de Resend: ese dominio **solo
+permite enviar al email del titular de la cuenta**, así que cualquier otro
+tenant se queda sin recibir los correos (confirmación de invitado, invitaciones
+y código de borrado masivo).
+
+Para que el correo funcione para todos, hay que verificar un dominio propio en
+<https://resend.com/domains> y fijar `RESEND_FROM_EMAIL` con ese remitente.
+
+### Sesión y orígenes permitidos
+
+```
+# Origen principal del frontend (CORS + protección CSRF)
+ORIGIN_URL=https://tubodaonline.onrender.com
+
+# Orígenes adicionales separados por comas (opcional)
+ALLOWED_ORIGINS=https://panel.tubodaonline.com,https://www.tubodaonline.com
+
+# Política de la cookie de sesión (opcional)
+COOKIE_SAME_SITE=lax
+# COOKIE_DOMAIN=.tubodaonline.com
+```
+
+La sesión viaja en una cookie `httpOnly` (`tb_session`), no en `localStorage`.
+`COOKIE_SAME_SITE` debe ser `lax` mientras frontend y backend compartan
+dominio registrable (hoy: `onrender.com`). Si el frontend pasa a un dominio
+propio, hay que ponerlo en `none` —la verificación de `Origin` sigue
+protegiendo frente a CSRF— y conviene añadir ese origen en `ALLOWED_ORIGINS`.
+
 ## Uso
 
 Modo desarrollo:

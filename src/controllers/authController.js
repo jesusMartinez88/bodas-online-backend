@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import * as User from "../models/user.js";
+import { setSessionCookie, clearSessionCookie } from "../services/sessionCookie.js";
 import * as Setting from "../models/setting.js";
 import db, { initUserDefaults } from "../db.js";
 import { logWarn } from "../utils/logger.js";
@@ -17,6 +19,29 @@ import { isValidEmail } from "../utils/validation.js";
  */
 const DUMMY_PASSWORD_HASH =
   "$2b$10$rQImcTnS86p1XQg6pc/2.unf9U3my88vMpyuJA5jDm5EBZIieCUmK";
+
+/** Rondas de bcrypt. Replicadas aquí para el hash descartable del registro. */
+const BCRYPT_ROUNDS = 10;
+
+/**
+ * Latencia mínima de la respuesta de registro.
+ *
+ * El camino "username ya existe" aborta tras una consulta, mientras que el
+ * camino "registro nuevo" hace un hash bcrypt (la operación más cara del
+ * flujo). Sin un mínimo común, el tiempo de respuesta revelaría qué
+ * usernames existen. Con un hash descartable en el camino de conflicto y este
+ * mínimo en ambos, las dos respuestas son indistinguibles.
+ */
+const REGISTER_MIN_RESPONSE_MS = 250;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const equalizeLatency = async (startedAt) => {
+  const elapsed = Date.now() - startedAt;
+  if (elapsed < REGISTER_MIN_RESPONSE_MS) {
+    await sleep(REGISTER_MIN_RESPONSE_MS - elapsed);
+  }
+};
 
 export const login = async (req, res) => {
   try {
@@ -59,9 +84,16 @@ export const login = async (req, res) => {
       { expiresIn: "24h" }
     );
 
-    res.json({
+    // El token viaja en una cookie `httpOnly` (invisible para el JavaScript de
+    // la página).
+    setSessionCookie(res, token);
+
+    // Y solo se devuelve en el cuerpo de la respuesta a clientes que NO son
+    // navegador (los que no envían `Origin`: apps móviles, CLI, tests). El
+    // navegador usa la cookie y así un XSS no puede copiar un token de 24 h
+    // reutilizable fuera del navegador.
+    const responseBody = {
       success: true,
-      token,
       user: {
         id: user.id,
         username: user.username,
@@ -70,7 +102,12 @@ export const login = async (req, res) => {
         slug: user.slug,
         paidAt: user.paidAt ?? null,
       },
-    });
+    };
+    if (!req.headers.origin) {
+      responseBody.token = token;
+    }
+
+    res.json(responseBody);
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({
@@ -81,6 +118,7 @@ export const login = async (req, res) => {
 };
 
 export const register = async (req, res) => {
+  const startedAt = Date.now();
   const { username, email, password, estimatedGuests } = req.body ?? {};
 
   if (!username || !password) {
@@ -101,9 +139,19 @@ export const register = async (req, res) => {
     // Verificar si el username ya existe
     const existing = await User.findByUsername(username);
     if (existing) {
+      // Anti-enumeración: se ejecuta un hash bcrypt descartable para que este
+      // camino tenga el mismo coste (y la misma latencia) que un registro
+      // nuevo. Si no, el tiempo de respuesta delataría que el username ya
+      // está en uso.
+      await bcrypt.hash(password, BCRYPT_ROUNDS);
+      await equalizeLatency(startedAt);
+      // Y el mensaje es genérico: no confirma que el username existe. El
+      // frontend consulta `check-username` (limitado y con latencia
+      // constante) para poder dar feedback útil al usuario.
       return res.status(409).json({
         success: false,
-        message: "Username already taken",
+        message:
+          "Registration could not be completed. Please review your details and try again.",
       });
     }
 
@@ -167,9 +215,11 @@ export const register = async (req, res) => {
       );
     });
 
-    res.status(201).json({
+    await equalizeLatency(startedAt);
+    setSessionCookie(res, token);
+
+    const responseBody = {
       success: true,
-      token,
       user: {
         id: newUser.id,
         username: newUser.username,
@@ -178,7 +228,14 @@ export const register = async (req, res) => {
         slug: newUser.slug,
         paidAt: null,
       },
-    });
+    };
+    // Ver `login`: el token en el cuerpo solo se devuelve a clientes que no
+    // son navegador.
+    if (!req.headers.origin) {
+      responseBody.token = token;
+    }
+
+    res.status(201).json(responseBody);
   } catch (error) {
     console.error("Register error:", error);
     res.status(500).json({
@@ -252,6 +309,19 @@ export const checkUsername = async (req, res) => {
       message: "Internal server error",
     });
   }
+};
+
+/**
+ * Cierra la sesión borrando la cookie de sesión.
+ *
+ * El JWT no se revoca (es sin estado): la cookie es lo que mantiene la
+ * sesión en el navegador, así que borrarla es suficiente. La cabecera
+ * `Authorization` que usan los clientes no navegador sigue siendo válida
+ * hasta que expire el token.
+ */
+export const logout = async (req, res) => {
+  clearSessionCookie(res);
+  res.json({ success: true, message: "Session closed" });
 };
 
 export const me = async (req, res) => {

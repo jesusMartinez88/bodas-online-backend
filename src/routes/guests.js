@@ -19,11 +19,14 @@ router.get("/:id", guestController.getGuest);
 router.post("/", guestController.createGuest);
 router.put("/:id", guestController.updateGuest);
 router.patch("/:id", guestController.patchGuest);
-router.delete("/:id", guestController.deleteGuest);
 
 // generar y enviar código de borrado masivo por email
 router.post("/request-delete", guestController.requestDeleteCode);
-// borrar todos los invitados (se requiere el código enviado por email)
+// borrar todos los invitados (se requiere el código enviado por email).
+// IMPORTANTE: estas rutas deben declararse ANTES que `/:id`, de lo contrario
+// Express interpretaría "bulk" como un id de invitado.
 router.delete("/bulk", guestController.deleteAllGuests);
+router.delete("/", guestController.deleteAllGuests);
+router.delete("/:id", guestController.deleteGuest);
 
 export default router;

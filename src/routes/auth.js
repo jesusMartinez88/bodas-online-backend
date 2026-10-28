@@ -100,6 +100,7 @@ router.get(
 
 // Rutas protegidas
 router.get("/me", authenticateJWT, authController.me);
+router.post("/logout", authController.logout);
 router.patch("/me/password", authenticateJWT, authController.changePassword);
 router.patch(
   "/me",

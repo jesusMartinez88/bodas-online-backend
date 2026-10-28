@@ -1,17 +1,14 @@
 import express from "express";
-import multer from "multer";
 import * as adminController from "../controllers/adminController.js";
 import * as invitationMediaController from "../controllers/invitationMediaController.js";
 import * as questionnaireController from "../controllers/landingQuestionnaireController.js";
 import * as discountController from "../controllers/discountController.js";
 import { authenticateJWT } from "../middleware/auth.js";
 import { requireRole } from "../middleware/requireRole.js";
+import { createAudioUpload } from "../middleware/uploadPolicy.js";
 
 const router = express.Router();
-const uploadMusic = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024, files: 1 },
-});
+const uploadMusic = createAudioUpload();
 
 router.use(authenticateJWT);
 router.use(requireRole("admin"));
