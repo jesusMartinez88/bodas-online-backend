@@ -7,7 +7,7 @@ import { MEDIA_ROOT } from "../constants/media.js";
 
 // Columnas "seguras" que devolvemos al frontend (nunca password, etc.)
 const PUBLIC_USER_COLUMNS =
-  "id, username, email, role, slug, paidAt, invitationCompletedAt, lastLoginAt, createdAt, notes";
+  "id, username, email, role, slug, paidAt, invitationCompletedAt, lastLoginAt, createdAt, notes, partner1Name, partner2Name";
 
 export const findByUsername = async (username) => {
   return await db.get("SELECT * FROM users WHERE username = ?", [username]);
@@ -36,13 +36,31 @@ export const createUser = async ({
   password,
   role = "user",
   slug,
+  partner1Name,
+  partner2Name,
 }) => {
   const hashedPassword = await bcrypt.hash(password, 10);
   const result = await db.run(
-    "INSERT INTO users (username, email, password, role, slug) VALUES (?, ?, ?, ?, ?)",
-    [username, email || null, hashedPassword, role, slug],
+    "INSERT INTO users (username, email, password, role, slug, partner1Name, partner2Name) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    [
+      username,
+      email || null,
+      hashedPassword,
+      role,
+      slug,
+      partner1Name || null,
+      partner2Name || null,
+    ],
   );
-  return { id: result.lastID, username, email, role, slug };
+  return {
+    id: result.lastID,
+    username,
+    email,
+    role,
+    slug,
+    partner1Name: partner1Name || null,
+    partner2Name: partner2Name || null,
+  };
 };
 
 export const updatePassword = async (id, newPassword) => {

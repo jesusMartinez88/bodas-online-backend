@@ -23,6 +23,7 @@ export const listUsersWithStats = async (req, res) => {
       SELECT
         u.id, u.username, u.email, u.role, u.slug, u.paidAt,
         u.invitationCompletedAt, u.lastLoginAt, u.createdAt, u.notes,
+        u.partner1Name, u.partner2Name,
         (SELECT COUNT(*) FROM guests g WHERE g.userId = u.id) AS guestCount,
         (SELECT COUNT(*) FROM contacts c WHERE c.userId = u.id) AS contactCount,
         (SELECT COUNT(*) FROM tables t WHERE t.userId = u.id) AS tableCount,

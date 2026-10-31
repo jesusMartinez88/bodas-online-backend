@@ -45,6 +45,21 @@ const sendEmail = async (payload) => {
 };
 
 /**
+ * Escapa un texto para poder interpolarlo en una plantilla HTML de email.
+ *
+ * Los nombres de los novios vienen del cliente (aunque el controlador ya
+ * les quita el HTML), así que se escapan igual que el resto de texto
+ * libre que se inyecta en los emails.
+ */
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+/**
  * Inicializar el servicio de email con Resend
  */
 export const initializeEmailService = () => {
@@ -666,6 +681,8 @@ export const sendNewUserRegisteredEmail = async ({
   newUserEmail,
   newUserSlug,
   newUserId,
+  newPartner1Name,
+  newPartner2Name,
 }) => {
   if (!emailEnabled) {
     console.warn(
@@ -709,6 +726,10 @@ export const sendNewUserRegisteredEmail = async ({
               <tr style="background-color: #fdf2f8;">
                 <td style="padding: 12px 14px; border-radius: 8px; font-size: 14px; color: #6b7280;">Username</td>
                 <td style="padding: 12px 14px; border-radius: 8px; font-size: 14px; font-weight: 600; color: #1f2937; text-align: right; font-family: monospace;">${newUsername || "—"}</td>
+              </tr>
+              <tr style="background-color: #fdf2f8;">
+                <td style="padding: 12px 14px; border-radius: 8px; font-size: 14px; color: #6b7280;">Nombres de la pareja</td>
+                <td style="padding: 12px 14px; border-radius: 8px; font-size: 14px; font-weight: 600; color: #1f2937; text-align: right;">${escapeHtml(newPartner1Name || "—")} &amp; ${escapeHtml(newPartner2Name || "—")}</td>
               </tr>
               <tr>
                 <td style="padding: 12px 14px; font-size: 14px; color: #6b7280;">Email</td>

@@ -91,6 +91,23 @@ const registerSchema = {
     maxLength: 200,
     message: "password: debe tener al menos 8 caracteres",
   },
+  // Nombres de la pareja. Opcionales en la API (las cuentas creadas antes
+  // de esta feature no los tienen), pero si vienen deben ser texto y no
+  // pasar del límite: es un nombre propio, no un campo de texto libre.
+  // La nomenclatura es neutra: la pareja puede ser de dos personas del
+  // mismo sexo.
+  partner1Name: {
+    type: "string",
+    required: false,
+    maxLength: 100,
+    message: "partner1Name: debe tener como máximo 100 caracteres",
+  },
+  partner2Name: {
+    type: "string",
+    required: false,
+    maxLength: 100,
+    message: "partner2Name: debe tener como máximo 100 caracteres",
+  },
 };
 
 router.post("/login", authLimiter, validateBody(loginSchema), authController.login);

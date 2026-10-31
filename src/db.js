@@ -339,6 +339,14 @@ const initializeTables = async () => {
     `);
 
     // Tabla de usuarios
+    //
+    // `partner1Name` / `partner2Name` guardan los nombres de la pareja. Se
+    // piden en el paso 1 del registro y son opcionales (NULL) para las
+    // cuentas creadas antes de que existieran.
+    //
+    // La nomenclatura es neutra a propósito: la pareja puede estar formada
+    // por dos personas del mismo sexo o por cualquier otra combinación, así
+    // que los campos no presuponen ningún rol de género.
     await db.run(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -347,6 +355,8 @@ const initializeTables = async () => {
         role TEXT DEFAULT 'user',
         slug TEXT UNIQUE NOT NULL DEFAULT '',
         email TEXT,
+        partner1Name TEXT,
+        partner2Name TEXT,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -400,6 +410,37 @@ const initializeTables = async () => {
       if (!colsByName.has("notes")) {
         await db.run(`ALTER TABLE users ADD COLUMN notes TEXT`);
         console.log("✅ Column notes added to users table");
+      }
+      // Nombres de la pareja: se piden en el paso 1 del registro. Quedan
+      // a NULL en las cuentas creadas antes de esta migración (no se
+      // rellenan solos: el admin puede editarlos desde el panel).
+      //
+      // La nomenclatura es neutra (`partner1Name` / `partner2Name`) porque
+      // la pareja puede ser de dos personas del mismo sexo.
+      if (!colsByName.has("partner1Name")) {
+        // Una BBD ya migrada con los nombres antiguos (`groomName` /
+        // `brideName`) se renombra en lugar de recrear la columna, para no
+        // perder los datos que ya tuviera.
+        if (colsByName.has("groomName")) {
+          await db.run(
+            "ALTER TABLE users RENAME COLUMN groomName TO partner1Name",
+          );
+          console.log("✅ Column groomName renamed to partner1Name");
+        } else {
+          await db.run(`ALTER TABLE users ADD COLUMN partner1Name TEXT`);
+          console.log("✅ Column partner1Name added to users table");
+        }
+      }
+      if (!colsByName.has("partner2Name")) {
+        if (colsByName.has("brideName")) {
+          await db.run(
+            "ALTER TABLE users RENAME COLUMN brideName TO partner2Name",
+          );
+          console.log("✅ Column brideName renamed to partner2Name");
+        } else {
+          await db.run(`ALTER TABLE users ADD COLUMN partner2Name TEXT`);
+          console.log("✅ Column partner2Name added to users table");
+        }
       }
     } catch (err) {
       if (!err.message?.includes("duplicate column")) {

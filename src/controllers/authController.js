@@ -9,7 +9,7 @@ import {
   sendPasswordResetCodeEmail,
   sendNewUserRegisteredEmail,
 } from "../services/emailService.js";
-import { isValidEmail } from "../utils/validation.js";
+import { isValidEmail, sanitizeHTML } from "../utils/validation.js";
 
 /**
  * Hash bcrypt de un valor aleatorio que NUNCA corresponde a una contraseña
@@ -41,6 +41,33 @@ const equalizeLatency = async (startedAt) => {
   if (elapsed < REGISTER_MIN_RESPONSE_MS) {
     await sleep(REGISTER_MIN_RESPONSE_MS - elapsed);
   }
+};
+
+/**
+ * Longitud máxima de los nombres de la pareja. Es un nombre propio: 100
+ * caracteres de sobra y deja margen para "Ana María Fernández de la Vega".
+ */
+const PARTNER_NAME_MAX_LENGTH = 100;
+
+/**
+ * Normaliza uno de los nombres de la pareja para persistirlo.
+ *
+ * - Recorta los espacios sobrantes de los extremos.
+ * - Colapsa las secuencias de espacios en un único espacio.
+ * - Elimina el HTML (los nombres se muestran en el panel de admin y en
+ *   emails: no tienen por qué llevar etiquetas).
+ * - Devuelve `null` si no queda texto útil, para no guardar strings vacíos.
+ *
+ * @param {unknown} value
+ * @returns {string | null}
+ */
+const sanitizePartnerName = (value) => {
+  if (typeof value !== "string") return null;
+  const cleaned = sanitizeHTML(value)
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return null;
+  return cleaned.slice(0, PARTNER_NAME_MAX_LENGTH);
 };
 
 export const login = async (req, res) => {
@@ -101,6 +128,8 @@ export const login = async (req, res) => {
         role: user.role,
         slug: user.slug,
         paidAt: user.paidAt ?? null,
+        partner1Name: user.partner1Name ?? null,
+        partner2Name: user.partner2Name ?? null,
       },
     };
     if (!req.headers.origin) {
@@ -119,7 +148,14 @@ export const login = async (req, res) => {
 
 export const register = async (req, res) => {
   const startedAt = Date.now();
-  const { username, email, password, estimatedGuests } = req.body ?? {};
+  const {
+    username,
+    email,
+    password,
+    estimatedGuests,
+    partner1Name,
+    partner2Name,
+  } = req.body ?? {};
 
   if (!username || !password) {
     return res.status(400).json({
@@ -134,6 +170,11 @@ export const register = async (req, res) => {
       message: "Password must be at least 8 characters",
     });
   }
+
+  // Nombres de la pareja: opcionales en la API (las cuentas antiguas no los
+  // tienen) pero, si vienen, se limpian y se limitan antes de persistir.
+  const cleanPartner1Name = sanitizePartnerName(partner1Name);
+  const cleanPartner2Name = sanitizePartnerName(partner2Name);
 
   try {
     // Verificar si el username ya existe
@@ -170,7 +211,14 @@ export const register = async (req, res) => {
       slug = `${baseSlug}-${suffix++}`;
     }
 
-    const newUser = await User.createUser({ username, email, password, slug });
+    const newUser = await User.createUser({
+      username,
+      email,
+      password,
+      slug,
+      partner1Name: cleanPartner1Name,
+      partner2Name: cleanPartner2Name,
+    });
 
     // Inicializar settings y categorías por defecto
     await initUserDefaults(newUser.id);
@@ -208,6 +256,8 @@ export const register = async (req, res) => {
       newUserEmail: newUser.email,
       newUserSlug: newUser.slug,
       newUserId: newUser.id,
+      newPartner1Name: newUser.partner1Name,
+      newPartner2Name: newUser.partner2Name,
     }).catch((emailErr) => {
       console.warn(
         "[auth] No se pudo notificar al admin del nuevo registro:",
@@ -227,6 +277,8 @@ export const register = async (req, res) => {
         role: newUser.role,
         slug: newUser.slug,
         paidAt: null,
+        partner1Name: newUser.partner1Name ?? null,
+        partner2Name: newUser.partner2Name ?? null,
       },
     };
     // Ver `login`: el token en el cuerpo solo se devuelve a clientes que no
